@@ -19,3 +19,13 @@ Rasterize polygon to raster where water surface is equal to 1:
 Calculate fetch length from 8 directions and compute summary:  
 `python WindFetchSimple.py -i test/lake_test.tif -o test/lake_test_fetch.tif -d '0,45,90,135,180,225,270,315' -id 1 -s test/lake_test_summary.tif`
 
+Image showing the resulting fetch length rasters:
+![](https://github.com/KennethTM/WindFetch/tree/master/test/lake_test_fetch.png)
+
+And the associated summary:
+![](https://github.com/KennethTM/WindFetch/tree/master/test/lake_test_fetch_summary.png)
+
+## TO DO:
+* Speed calculation of raster lengths using C or cython maybe?
+* Calculate weighted fetch
+* Implement fetch derived metrics for wave calculations
