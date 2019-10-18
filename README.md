@@ -25,7 +25,10 @@ Image showing the resulting fetch length rasters:
 And the associated summary:  
 ![alt text](https://github.com/KennethTM/WindFetch/blob/master/test/lake_test__summary.png)
 
+Weighted fetch can be computed by supplying a weight for each direction where fetch length was computed using WindFetchSimple tool. This is used as input for WindFetchWeight tool which outputs a raster with the weighted average fetch.
+
+`python WindFetchWeight.py -i test/lake_test_fetch.tif -o test/lake_test_fetch_weighted.tif -w '0.1,0.2,0.1,0.1,0.2,0.1,0.1,0.1'`
+
 ## TO DO:
-* Speed up calculations of fetch lengths using C or cython maybe?
-* Calculate weighted fetch
-* Implement fetch derived metrics for wave calculations
+* Speed up calculations of fetch lengths using cython maybe
+* Implement metrics for wave calculations

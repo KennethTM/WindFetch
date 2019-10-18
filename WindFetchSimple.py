@@ -62,7 +62,7 @@ def main():
     
         nrow, ncol = array.shape
         
-        fetch = np.full(ncol, -1*resolution)
+        fetch = np.full(ncol, np.nan) #-1*resolution
     
         list_fetch = []
     
