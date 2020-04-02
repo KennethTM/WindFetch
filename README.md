@@ -1,34 +1,12 @@
 # WindFetch
-WindFetch are python script used to calculate wind fetch (the unobstructed length which the wind can travel across water) from a given direction/angle/bearing. Existing tools may calculate these metrics from vector data e.g. points and polygon. This script calculates fetch on rasters. Similar tools for raster processing exists for use in [ArcGIS](https://umesc.usgs.gov/management/dss/wind_fetch_wave_models_2012update.html). 
+WindFetch are some python scripting used to calculate wind fetch over water surface. Wind fetch is the unobstructed length which the wind can travel across a water surface from a given direction. Wind fetch can be determined from all water surface enclosed by land. Wind fetch metrics are used in wave, wind and ecological modeling. Existing tools may calculate these metrics from vector data e.g. points and polygon. This script calculates the wind fetch for each cell in rasters. Similar tools for raster processing exists for use in [ArcGIS](https://umesc.usgs.gov/management/dss/wind_fetch_wave_models_2012update.html). The tool simply calculates fetch along a supplied direction(s). It can also create summary grids with minimum, mean and maximum fetch values. A weighted fetch grid can also created by supplying a weighted for each direction.
 
-As of now, this tools outputs a raster file containing 1 band for each wind direction. Optionally, a summary raster can also be saved containing min, mean and max values. 
+## Example 
+See the waterbody_test.py for an example of useage. This starts with a vector polygon of a lake. The vector is rasterized to a grid where "water" cells share an id value to distinguish between water and land.
 
-Wind fetch can be determined from all water surface enclosed by land. Wind fetch metrics are used in wave and wind modeling, but may also be used as a variable in species-distribution modeling.
+From here, fetch can be calculated by supplying directions:
+ 
+![alt text](https://github.com/KennethTM/WindFetch/blob/master/test_files/gurre_lake_fetch.png)
 
-## Usage
-An analysis migth start from a vector polygon file or a raster. The only requirement is that "water" cells in the raster share an id-value. This value is used to distinguish between water and land. 
-
-Starting from a vector polygon file of a lake (.kml file in test folder), we rasterize and reproject the polygon to a raster in a project coordinate system. This can be done from the terminal using GDAL:
-
-Re-project:  
-`ogr2ogr -t_srs EPSG:25832 lake_test.sqlite lake_test.kml`
-
-Rasterize polygon to raster where water surface is equal to 1:  
-`gdal_rasterize -burn 1 -tr 25 25 lake_test.sqlite lake_test.tif`
-
-Calculate fetch length from 8 directions and compute summary:  
-`python WindFetchSimple.py -i test/lake_test.tif -o test/lake_test_fetch.tif -d '0,45,90,135,180,225,270,315' -id 1 -s test/lake_test_summary.tif`
-
-Image showing the resulting fetch length rasters:  
-![alt text](https://github.com/KennethTM/WindFetch/blob/master/test/lake_test_fetch.png)
-
-And the associated summary:  
-![alt text](https://github.com/KennethTM/WindFetch/blob/master/test/lake_test__summary.png)
-
-Weighted fetch can be computed by supplying a weight for each direction where fetch length was computed using WindFetchSimple tool. This is used as input for WindFetchWeight tool which outputs a raster with the weighted average fetch.
-
-`python WindFetchWeight.py -i test/lake_test_fetch.tif -o test/lake_test_fetch_weighted.tif -w '0.1,0.2,0.1,0.1,0.2,0.1,0.1,0.1'`
-
-## TO DO:
-* Speed up calculations of fetch lengths using cython maybe
-* Implement metrics for wave calculations
+Using the calculated fetch grids a summary can also be computed:  
+![alt text](https://github.com/KennethTM/WindFetch/blob/master/test_files/gurre_lake_fetch_summary.png)
