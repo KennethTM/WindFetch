@@ -7,17 +7,22 @@ import copy
 #Requires raster, profile, resolution and id value for water cells
 class waterbody():
 
-    def __init__(self, raster, profile, resolution, water_id):
-        self.array = np.asarray(raster)
-        self.landwater = np.where(raster == water_id, -1, np.nan)
-        self.water_id = water_id
+    def __init__(self, array, profile, water_id = None):
+        self.array = np.array(array).astype("float32")
+        self.count = self.array.shape[0]
+        
         self.profile = profile
-        self.nrow = profile["height"]
-        self.ncol = profile["width"]
-        self.resolution = resolution
+        self.nrow = self.profile["height"]
+        self.ncol = self.profile["width"]
+        self.resolution = self.profile["transform"][0]
+        self.profile["count"] = self.count
 
+        if water_id:
+            self.water_id = water_id
+            self.landwater = np.where(self.array == self.water_id, -1, np.nan)
+      
     #Main function for calculating fetch from several directions
-    def wind_fetch(self, directions):
+    def fetch(self, directions, weigths = None):
 
         #Function to calculate length
         def fetch_length(array, resolution):
@@ -61,7 +66,7 @@ class waterbody():
             
         array_pad = padding(self.landwater, pad_width, np.nan)
             
-        dirs_arrays = []
+        dir_arrays = []
 
         for d in directions:
             array_rot = rotate(array_pad, angle=d, reshape=False, mode = "constant", cval = np.nan, order = 0)
@@ -72,59 +77,50 @@ class waterbody():
         
             array_inv_pad = padding(array_inv_rot, pad_width, -self.resolution, inverse = True)
         
-            dirs_arrays.append(array_inv_pad)
+            dir_arrays.append(array_inv_pad)
 
-        waterbody_copy = copy.copy(self)
+        if weigths:
+            dir_arrays_weighted = [i*w for i, w in zip(dir_arrays, weigths)]
+            fetch_array = np.stack(dir_arrays_weighted)*(self.landwater*-1)
+        else:
+            fetch_array = np.stack(dir_arrays)*(self.landwater*-1)
 
-        waterbody_copy.layers = np.stack(dirs_arrays)
-        waterbody_copy.directions = directions
-        
-        return(waterbody_copy)
+        fetch_profile = self.profile.copy()
+        waterbody_fetch = waterbody(fetch_array, fetch_profile)
+        waterbody_fetch.directions = directions
 
-    def summary(self):
-        stack_min = np.min(self.layers, axis = 0)
-        stack_mean = np.mean(self.layers, axis = 0)
-        stack_max = np.max(self.layers, axis = 0)
+        if weigths:
+            waterbody_fetch.weights = weigths
 
-        waterbody_copy = copy.copy(self)
+        return(waterbody_fetch)        
 
-        waterbody_copy.layers = np.stack([stack_min, stack_mean, stack_max])
+    def summary(self, stats):
 
-        return(waterbody_copy)
+        stats_dict = {"mean": np.mean, "min": np.min, "max": np.max, "range": np.ptp, "std": np.std, "median": np.median, "var": np.var}
 
-    def weighted_fetch(self, weights):
-        weights = np.array(weights)
+        summary_list = [stats_dict[i](self.array, axis = 0) for i in stats]
+        summary_array = np.stack(summary_list)
 
-        if len(weights) != len(self.directions):
-            print('Error: Number of weights not equal to number of fetch directions')
-            return(1)
-            
-        if sum(weights) > 1.01 or sum(weights) < 0.99:
-            print('Error: Sum of weights not equal to 1. The sum of the supplied weights is {}'.format(sum(weights)))
-            return(1)
+        summary_profile = self.profile.copy()
+        waterbody_summary = waterbody(summary_array, summary_profile)
+        waterbody_summary.stats = stats
 
-        waterbody_copy = copy.copy(self)
-
-        waterbody_copy.layers = np.expand_dims(np.tensordot(self.layers, weights, axes = ([0],[0])), axis=0)
-
-        return(waterbody_copy)
+        return(waterbody_summary)
 
 #Function for reading a raster and convert to object waterbody
 def read_waterbody(path, water_id):
     
-    with rasterio.open(path) as data:
-        raster = data.read(1).astype("float")
-        profile = data.profile
-        resolution = data.res[0]
+    with rasterio.open(path) as src:
+        array = src.read(1)
+        profile = src.profile
         
-    return(waterbody(raster, profile, resolution, water_id))
+    return(waterbody(array, profile, water_id))
 
 #Write waterbody object to raster with one layer for each fetch direction
-def save_waterbody(waterbody, path):
+def save_waterbody(waterbody, path, dst_nodata = -9999):
     
-    waterbody.profile["count"] = waterbody.layers.shape[0]
     waterbody.profile["dtype"] = rasterio.float32
-    waterbody.profile["nodata"] = 0
+    waterbody.profile["nodata"] = dst_nodata
     
     with rasterio.open(path, "w", **waterbody.profile) as dst:
-        dst.write(waterbody.layers.astype(rasterio.float32))
+        dst.write(waterbody.array)
