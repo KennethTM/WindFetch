@@ -22,7 +22,7 @@ class waterbody():
             self.landwater = np.where(self.array == self.water_id, -1, np.nan)
       
     #Main function for calculating fetch from several directions
-    def fetch(self, directions, weigths = None):
+    def fetch(self, directions, weigths = None, method_vect = None):
 
         #Function to calculate length
         def fetch_length(array, resolution):
@@ -47,6 +47,19 @@ class waterbody():
                 
             return(np.array(list_fetch))
 
+        def fetch_length_vect(array, resolution):
+            w = array*-1
+            v = w.flatten(order = "F")
+            n = np.isnan(v)
+            a = ~n
+            c = np.cumsum(a)
+            b = np.concatenate(([0.0], c[n]))
+            d = np.diff(b,)
+            v[n] = -d
+            x=np.cumsum(v)
+            y=np.reshape(x, w.shape, order = "F")*w*resolution
+            return(y)
+
         #Function to estimate padding required before rotation
         def estimated_pad(nrow, ncol, resolution):
             xlen = resolution*ncol
@@ -65,14 +78,18 @@ class waterbody():
         pad_width = estimated_pad(self.nrow, self.ncol, self.resolution)
             
         array_pad = padding(self.landwater, pad_width, np.nan)
-            
+
+
         dir_arrays = []
 
         for d in directions:
             array_rot = rotate(array_pad, angle=d, reshape=False, mode = "constant", cval = np.nan, order = 0)
-        
-            array_fetch = fetch_length(array_rot, self.resolution)
-            
+
+            if method_vect:
+                array_fetch = fetch_length_vect(array_rot, self.resolution)
+            else:
+                array_fetch = fetch_length(array_rot, self.resolution)
+                
             array_inv_rot = rotate(array_fetch, angle=360-d, reshape=False, mode = "constant", cval = np.nan, order = 0)
         
             array_inv_pad = padding(array_inv_rot, pad_width, -self.resolution, inverse = True)

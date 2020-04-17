@@ -2,6 +2,7 @@ from waterbody import *
 import gdal
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import ImageGrid
+import time
 
 #Run test of fetch functions
 #Danish lake Gurre (source: OpenStreetMap) attached as .sqlite file in projected crs 
@@ -18,6 +19,21 @@ lake = read_waterbody(lake_vec+".tif", 1)
 fetch_dirs = [0, 45, 90, 135, 180, 225, 270, 315]
 fetch_weigths = [1.0]*8
 lake_fetch = lake.fetch(fetch_dirs, fetch_weigths)
+
+'''
+lake_old = read_waterbody(lake_vec+".tif", 1)
+t0 = time.time()
+lake_fetch = lake_old.fetch(fetch_dirs, fetch_weigths)
+t1 = time.time()
+
+lake_new = read_waterbody(lake_vec+".tif", 1)
+t2 = time.time()
+lake_fetch_vect = lake_new.fetch(fetch_dirs, fetch_weigths, method_vect=True)
+t3 = time.time()
+
+print("Old method: %s" % (t1-t0))
+print("New method: %s" % (t3-t2))
+'''
 
 #Calculate fetch summary
 summary_stats = ["min", "mean", "max"]
