@@ -18,22 +18,23 @@ lake = read_waterbody(lake_vec+".tif", 1)
 #Calculate fetch
 fetch_dirs = [0, 45, 90, 135, 180, 225, 270, 315]
 fetch_weigths = [1.0]*8
-lake_fetch = lake.fetch(fetch_dirs, fetch_weigths)
+lake_fetch = lake.fetch(directions = fetch_dirs, weigths=fetch_weigths, method_vect=True, minor_directions= 3, minor_interval= 5)
 
-'''
-lake_old = read_waterbody(lake_vec+".tif", 1)
 t0 = time.time()
-lake_fetch = lake_old.fetch(fetch_dirs, fetch_weigths)
+fetch_old = lake.fetch(fetch_dirs, fetch_weigths)
 t1 = time.time()
 
-lake_new = read_waterbody(lake_vec+".tif", 1)
 t2 = time.time()
-lake_fetch_vect = lake_new.fetch(fetch_dirs, fetch_weigths, method_vect=True)
+fetch_new = lake.fetch(fetch_dirs, fetch_weigths, method_vect=True)
 t3 = time.time()
+
+#t4 = time.time()
+#fetch_new = lake.fetch(fetch_dirs, fetch_weigths, method_vect=True, multi=True)
+#t5 = time.time()
 
 print("Old method: %s" % (t1-t0))
 print("New method: %s" % (t3-t2))
-'''
+#print("New method and multicore: %s" % (t5-t4))
 
 #Calculate fetch summary
 summary_stats = ["min", "mean", "max"]
