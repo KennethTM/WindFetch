@@ -1,56 +1,45 @@
-from waterbody import *
+from WindFetch import Waterbody, Fetch
 import gdal
 import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1 import ImageGrid
-import time
+import numpy as np
 
 #Run test of fetch functions
 #Danish lake Gurre (source: OpenStreetMap) attached as .sqlite file in projected crs 
 lake_vec = "test_files/gurre_lake"
 
 #Rasterize vector file using gdal
-lake_rast = gdal.Rasterize(lake_vec+".tif", lake_vec+".sqlite", xRes = 10, yRes = 10, burnValues = [1], noData = 0, outputType = gdal.GDT_Byte, creationOptions = ["COMPRESS=LZW"], )
+lake_rast = gdal.Rasterize(lake_vec+".tif", lake_vec+".sqlite", xRes = 5, yRes = 5, burnValues = [1], noData = 0, outputType = gdal.GDT_Byte, creationOptions = ["COMPRESS=LZW"], )
 lake_rast = None
 
 #Read lake from .tif file
-lake = read_waterbody(lake_vec+".tif", 1)
+lake = Waterbody.read_waterbody(lake_vec+".tif", 1)
 
-#Calculate fetch
-fetch_dirs = [0, 45, 90, 135, 180, 225, 270, 315]
-fetch_weigths = [1.0]*8
-lake_fetch = lake.fetch(directions = fetch_dirs, weigths=fetch_weigths, method_vect=True, minor_directions= 3, minor_interval= 5)
+dirs = [0, 45, 90, 135, 180, 225, 270, 315]
 
-t0 = time.time()
-fetch_old = lake.fetch(fetch_dirs, fetch_weigths)
-t1 = time.time()
+#Fetch along main directions
+fetch_main = lake.fetch(dirs)
 
-t2 = time.time()
-fetch_new = lake.fetch(fetch_dirs, fetch_weigths, method_vect=True)
-t3 = time.time()
+#Summary statistics of calculated fetches
+fetch_main_summary = fetch_main.summary(["min", "mean", "max"])
 
-#t4 = time.time()
-#fetch_new = lake.fetch(fetch_dirs, fetch_weigths, method_vect=True, multi=True)
-#t5 = time.time()
+#Apply weighting to each direction
+dirs_weights = [0.1, 0.3, 0.1, 0.2, 0, 0, 0.2, 0.1]
 
-print("Old method: %s" % (t1-t0))
-print("New method: %s" % (t3-t2))
-#print("New method and multicore: %s" % (t5-t4))
+fetch_main_weight = fetch_main.weighting(dirs_weights)
 
-#Calculate fetch summary
-summary_stats = ["min", "mean", "max"]
-lake_fetch_summary = lake_fetch.summary(summary_stats)
+#Calculated weighted mean
+fetch_main_weight_mean = fetch_main_weight.summary(["mean"])
 
-#Save fetch directions as raster band
-save_waterbody(lake_fetch, lake_vec+"_fetch.tif")
+#Fetch along main directions each calculated as the average of 5 directions with a distance of 3 degrees
+fetch_minor = lake.fetch(dirs, minor_directions = 5, minor_interval = 3)
 
-#Save fetch summary
-save_waterbody(lake_fetch_summary, lake_vec+"_fetch_summary.tif")
+#Write to file
+fetch_minor.write_waterbody(lake_vec+"_fetch_minor.tif")
 
-#Plot fetch layers and save .png file
-fetch_max = np.nanmax(lake_fetch.array)
-for i, d in enumerate(fetch_dirs):
-    arr = lake_fetch.array[i]
-    arr[arr == 0] = np.nan
+#Plot fetch along main directions and save as .png
+fetch_max = np.nanmax(fetch_main.array)
+for i, d in enumerate(dirs):
+    arr = fetch_main.array[i]
     plt.subplot(2, 4, i+1)
     plt.imshow(arr, vmin = 0, vmax=fetch_max)
     plt.title("{} degrees".format(d))
@@ -61,12 +50,27 @@ plt.subplots_adjust(right=0.9)
 
 cax = plt.axes([0.95, 0.35, 0.025, 0.3])
 plt.colorbar(cax=cax)
-plt.savefig(lake_vec+"_fetch.png", bbox_inches= "tight")
+plt.savefig(lake_vec+"_fetch_main.png", bbox_inches= "tight")
 
-#Repeat for fetch summary
+#Plot fetch along main directions with minor direction averaging and save as .png
+for i, d in enumerate(dirs):
+    arr = fetch_minor.array[i]
+    plt.subplot(2, 4, i+1)
+    plt.imshow(arr, vmin = 0, vmax=fetch_max)
+    plt.title("{} degrees".format(d))
+    plt.xticks([])
+    plt.yticks([])    
+
+plt.subplots_adjust(right=0.9)
+
+cax = plt.axes([0.95, 0.35, 0.025, 0.3])
+plt.colorbar(cax=cax)
+plt.savefig(lake_vec+"_fetch_minor.png", bbox_inches= "tight")
+
+#Plot summary of fetch along main directions
 for i, d in enumerate(["min", "mean", "max"]):
-    arr = lake_fetch_summary.array[i]
-    arr[arr == 0] = np.nan
+    arr = fetch_main_summary.array[i]
+    #arr[arr == 0] = np.nan
     plt.subplot(1, 3, i+1)
     plt.imshow(arr, vmin = 0, vmax=fetch_max)
     plt.title("{} fetch".format(d))
@@ -76,4 +80,4 @@ for i, d in enumerate(["min", "mean", "max"]):
 plt.subplots_adjust(right=0.9)
 
 plt.colorbar(cax=cax)
-plt.savefig(lake_vec+"_fetch_summary.png", bbox_inches= "tight")
+plt.savefig(lake_vec+"_fetch_main_summary.png", bbox_inches= "tight")

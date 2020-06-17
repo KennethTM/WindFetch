@@ -2,14 +2,13 @@ import numpy as np
 import rasterio
 from scipy.ndimage.interpolation import rotate
 import copy
+import gdal
 
-import multiprocessing
-from joblib import Parallel, delayed
-
-
-#The waterbody class
-#Requires raster, profile, resolution and id value for water cells
-class waterbody():
+class Waterbody():
+    '''
+    The Waterbody class
+    Requires raster, profile, resolution and water_id value for water cells
+    '''
 
     def __init__(self, array, profile, water_id = None):
         self.array = np.array(array).astype("float32")
@@ -21,37 +20,41 @@ class waterbody():
         if water_id:
             self.water_id = water_id
             self.landwater = np.where(self.array == self.water_id, -1, np.nan)
-      
+
+    @classmethod
+    def read_waterbody(cls, path, water_id):
+        'Read and create waterbody from GDAL supported raster file'
+    
+        with rasterio.open(path) as src:
+            array = src.read(1)
+            profile = src.profile
+        
+        return(cls(array, profile, water_id))
+
+    def write_waterbody(self, path, dst_nodata = -9999):
+        'Write array to GDAL supported raster file'
+
+        self.profile["dtype"] = rasterio.float32
+        self.profile["nodata"] = dst_nodata
+
+        with rasterio.open(path, "w", **self.profile) as dst:
+            dst.write(self.array)
+
     #Main function for calculating fetch from several directions
-    def fetch(self, directions, weigths = None, minor_directions = None, minor_interval = None, method_vect = None):
+    def fetch(self, directions, minor_directions = None, minor_interval = None):
+        '''
+        Calculates fetch from arbitrary directions supplid as a list.
+        
+        Optionally, fetch can be calculate as the mean of N minor_directions
+        centered around each direction with distance minor_interval.
+        '''
 
         #Function for calculating fetch from one direction
-        def fetch_single_dir(self, dir, method_vect = None):
+        def fetch_single_dir(self, dir):
 
-            #Original function used to calculate fetch length
-            def fetch_length(array, resolution):
-                nrow, ncol = array.shape
-                fetch = [np.nan]*ncol
-                list_fetch = []
-
-                for row in range(nrow):
-                
-                    land = array[row]
-                    
-                    for col in range(ncol):
-                        if np.isnan(land[col]):
-                            fetch[col] = 0
-                        else:
-                            if fetch[col] >= 0:
-                                fetch[col] = fetch[col] + resolution
-                            else:
-                                fetch[col] = fetch[col] - resolution
-                                
-                    list_fetch.append(list(fetch))
-                    
-                return(np.array(list_fetch))
-
+            #Function for the length calculation
             def fetch_length_vect(array, resolution):
+
                 w = array*-1
                 v = w.flatten(order = "F")
                 n = np.isnan(v)
@@ -62,22 +65,27 @@ class waterbody():
                 v[n] = -d
                 x=np.cumsum(v)
                 y=np.reshape(x, w.shape, order = "F")*w*resolution
+
                 return(y)
 
             #Function to estimate padding required before rotation
             def estimated_pad(array, resolution):
+
                 nrow, ncol = array.shape
                 xlen = resolution*ncol
                 ylen = resolution*nrow
                 padwidth = np.sqrt(xlen**2+ylen**2) - min([xlen, ylen])
-                return(int(padwidth/2/resolution)+1)
+
+                return(int(padwidth/2/resolution)+1) 
 
             #Function performing the padding
             def padding(array, pad_width, fill_value, inverse = False):
+
                 if inverse == False:
                     arr = np.pad(array, pad_width = pad_width, mode = "constant", constant_values = fill_value)
                 else:
                     arr = array[pad_width:-pad_width, pad_width:-pad_width]
+
                 return(arr)
 
             #Prepare array for fetch calculation i.e padding and rotating            
@@ -87,36 +95,30 @@ class waterbody():
 
             array_rot = rotate(array_pad, angle=dir, reshape=False, mode = "constant", cval = np.nan, order = 0)
 
-            if method_vect:
-                array_fetch = fetch_length_vect(array_rot, self.resolution)
-            else:
-                array_fetch = fetch_length(array_rot, self.resolution)
+            array_fetch = fetch_length_vect(array_rot, self.resolution)
                 
             array_inv_rot = rotate(array_fetch, angle=360-dir, reshape=False, mode = "constant", cval = np.nan, order = 0)
-        
+
             array_inv_pad = padding(array_inv_rot, pad_width, -self.resolution, inverse = True)
 
             return(array_inv_pad)
         
-        #if multi is True:
-        #    num_cores = multiprocessing.cpu_count()
-        #    #if __name__ == "__main__":
-        #    dir_arrays = Parallel(n_jobs=num_cores)(delayed(fetch_single_dir)(self, i, method_vect) for i in directions)
-
         def minor_dir_list(directions, minor_interval, minor_directions):
+
             minor_seq = [i*minor_interval for i in range(minor_directions)]
             minor_seq_mid = minor_seq[int(len(minor_seq)/2)]
             all_directions = []
             for d in directions:
                 for i in minor_seq:
                     all_directions.append((d+(i-minor_seq_mid))%360)
+
             return(all_directions)
 
         def divide_chunks(l, n): 
+
             for i in range(0, len(l), n):  
                 yield l[i:i + n] 
 
-        ######Tilføj loop for enkel dir og dir som er average af X minor dirs med Y afstand imellem
         #Calculate fetch length for each direction
         dir_arrays = []
 
@@ -124,7 +126,7 @@ class waterbody():
             all_directions = minor_dir_list(directions, minor_interval, minor_directions)
             all_dir_arrays = []
             for d in all_directions:
-                array_single_dir = fetch_single_dir(self, dir=d, method_vect = method_vect)
+                array_single_dir = fetch_single_dir(self, dir=d)
                 all_dir_arrays.append(array_single_dir)
 
             for i in divide_chunks(all_dir_arrays, minor_directions):
@@ -132,27 +134,43 @@ class waterbody():
             
         else:
             for d in directions:
-                array_single_dir = fetch_single_dir(self, dir=d, method_vect = method_vect)
+                array_single_dir = fetch_single_dir(self, dir=d)
                 dir_arrays.append(array_single_dir)
         
-        #Perform weighting for each direction and mask by orignal landwater array
-        if weigths:
-            dir_arrays_weighted = [i*w for i, w in zip(dir_arrays, weigths)]
-            fetch_array = np.stack(dir_arrays_weighted)*(self.landwater*-1)
-        else:
-            fetch_array = np.stack(dir_arrays)*(self.landwater*-1)
+        fetch_array = np.stack(dir_arrays)
 
-        #Return new waterbody object
+        #Return new fetch object
         fetch_profile = self.profile.copy()
-        waterbody_fetch = waterbody(fetch_array, fetch_profile)
-        waterbody_fetch.directions = directions
+        fetch = Fetch(fetch_array, fetch_profile)
+        fetch.directions = directions
 
-        if weigths:
-            waterbody_fetch.weights = weigths
+        return(fetch)
 
-        return(waterbody_fetch)        
+    def masking(self, waterbody, fill_value = None):
+        'Apply mask using an object of class waterbody'
+
+        if fill_value is not None:
+            array_masked = np.where(np.isnan(self.array), fill_value, self.array)*(waterbody.landwater*-1)
+        else:
+            array_masked = self.array*(waterbody.landwater*-1)
+
+        mask_profile = self.profile.copy()
+        mask = Fetch(array_masked, mask_profile)
+        mask.mask = True
+
+        return(mask)    
+
+class Fetch(Waterbody):
+    '''
+    The Fetch class - inherits from class Waterbody
+    Provides methods for fetch arrays
+    '''
 
     def summary(self, stats):
+        '''
+        Apply one or multiple summary statistics as a list for summarizing fetch array.
+        Valid stats include: mean, min, max, median, range, std and var.
+        '''
 
         stats_dict = {"mean": np.mean, "min": np.min, "max": np.max, "range": np.ptp, "std": np.std, "median": np.median, "var": np.var}
 
@@ -160,25 +178,21 @@ class waterbody():
         summary_array = np.stack(summary_list)
 
         summary_profile = self.profile.copy()
-        waterbody_summary = waterbody(summary_array, summary_profile)
-        waterbody_summary.stats = stats
+        summary = Fetch(summary_array, summary_profile)
+        summary.stats = stats
 
-        return(waterbody_summary)
+        return(summary)
 
-#Function for reading a raster and convert to object waterbody
-def read_waterbody(path, water_id):
-    
-    with rasterio.open(path) as src:
-        array = src.read(1)
-        profile = src.profile
-        
-    return(waterbody(array, profile, water_id))
+    def weighting(self, weights):
+        'Multiply each direction by a weight. Weights are normalized by the sum of all weights.'
+        weight_norm = np.array(weights)/np.array(weights).sum()
 
-#Write waterbody object to raster with one layer for each fetch direction
-def save_waterbody(waterbody, path, dst_nodata = -9999):
-    
-    waterbody.profile["dtype"] = rasterio.float32
-    waterbody.profile["nodata"] = dst_nodata
-    
-    with rasterio.open(path, "w", **waterbody.profile) as dst:
-        dst.write(waterbody.array)
+        weight_list = [i*w for i, w in zip(self.array, weight_norm)]
+        weight_array = np.stack(weight_list)
+
+        weight_profile = self.profile.copy()
+        weight = Fetch(weight_array, weight_profile)
+        weight.weigths = weight
+        weight.weigths_norm = weight_norm
+
+        return(weight)
