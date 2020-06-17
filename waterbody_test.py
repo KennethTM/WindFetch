@@ -3,12 +3,12 @@ import gdal
 import matplotlib.pyplot as plt
 import numpy as np
 
-#Run test of fetch functions
+#Examples of functionality in WindFetch.py script
 #Danish lake Gurre (source: OpenStreetMap) attached as .sqlite file in projected crs 
 lake_vec = "test_files/gurre_lake"
 
 #Rasterize vector file using gdal
-lake_rast = gdal.Rasterize(lake_vec+".tif", lake_vec+".sqlite", xRes = 5, yRes = 5, burnValues = [1], noData = 0, outputType = gdal.GDT_Byte, creationOptions = ["COMPRESS=LZW"], )
+lake_rast = gdal.Rasterize(lake_vec+".tif", lake_vec+".sqlite", xRes = 5, yRes = 5, burnValues = [1], noData = 0, outputType = gdal.GDT_Byte, creationOptions = ["COMPRESS=LZW"])
 lake_rast = None
 
 #Read lake from .tif file
