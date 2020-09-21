@@ -1,11 +1,11 @@
 # WindFetch
-WindFetch are some python scripting used to calculate wind fetch length along a direction across a water surface. Wind fetch is the unobstructed length which the wind can travel across a water surface from a given direction. Wind fetch can be determined from all water surface enclosed by land. Wind fetch metrics are used in wave, wind and ecological modeling. Existing tools may calculate these metrics from vector data e.g. points and polygon. This script calculates the wind fetch for each cell in rasters. Similar tools for raster processing exists for use in [ArcGIS](https://umesc.usgs.gov/management/dss/wind_fetch_wave_models_2012update.html). The tool can be used to calculate fetch length in the most simple way (along one direction) or where each length is an average of multiple minor direction spread around each direction. Weighting and calculation of summary statistics can also be performed. 
+WindFetch are a python script containing classes which can be used to easy the calculation of wind fetch length. Wind fetch is the unobstructed length which the wind can travel across a water surface from a given direction. Wind fetch can be determined from all water surface enclosed by land. Wind fetch metrics are used in wave, wind and ecological modeling. Existing tools may calculate these metrics from vector data e.g. points and polygon. This script calculates the wind fetch for each cell in rasters. Similar tools for raster processing exists for use in [ArcGIS](https://umesc.usgs.gov/management/dss/wind_fetch_wave_models_2012update.html). The tool can be used to calculate fetch length in the most simple way (along one direction) or where each length is an average of multiple minor directions spread evenly around each direction. Weighting and calculation of summary statistics can also be performed. The scripts depends on GDAL and numpy.
 
 ## Example 
 See the waterbody_test.py for some examples of useage. The proces may start with a vector polygon of a lake. The vector is rasterized to a grid where "water" cells share an id value to distinguish between water and land. Using this grid, fetch lengths and other properties can be determined.
 
 ```python
-from waterbody_refac import Waterbody, Fetch
+from WindFetch import Waterbody, Fetch
 import gdal
 import matplotlib.pyplot as plt
 import numpy as np
