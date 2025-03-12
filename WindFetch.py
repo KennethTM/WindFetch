@@ -172,7 +172,7 @@ class Fetch(Waterbody):
         Valid stats include: mean, min, max, median, range, std and var.
         '''
 
-        stats_dict = {"mean": np.mean, "min": np.min, "max": np.max, "range": np.ptp, "std": np.std, "median": np.median, "var": np.var}
+        stats_dict = {"mean": np.mean, "min": np.min, "max": np.max, "range": np.ptp, "std": np.std, "median": np.median, "var": np.var, "sum": np.sum}
 
         summary_list = [stats_dict[i](self.array, axis = 0) for i in stats]
         summary_array = np.stack(summary_list)
